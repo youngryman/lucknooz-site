@@ -1,0 +1,41 @@
+name: Refresh LuckNooz
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'      # every 6 hours (UTC). Adjust as you like.
+  workflow_dispatch:            # lets you trigger it manually from the Actions tab
+
+permissions:
+  contents: write               # needed to commit the regenerated HTML
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate fresh page
+        run: python generate.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "lucknooz-bot"
+          git config user.email "actions@github.com"
+          git add lucknooz.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Refresh headlines $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi

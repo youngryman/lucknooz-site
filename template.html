@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LuckNooz — Serendipitous Headlines</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Georgia,serif;background:linear-gradient(135deg,#1e3c72,#2a5298);
+       min-height:100vh;padding:20px;color:#333}
+  .container{max-width:900px;margin:0 auto}
+  header{text-align:center;margin-bottom:40px;color:#fff}
+  h1{font-size:3.5em;margin-bottom:10px;text-shadow:2px 2px 4px rgba(0,0,0,.3);letter-spacing:2px}
+  .tagline{font-size:1.1em;opacity:.9;font-style:italic}
+  .controls{display:flex;gap:15px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
+  button{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;
+       padding:15px 35px;font-size:1.1em;border-radius:50px;cursor:pointer;
+       transition:all .3s;box-shadow:0 4px 15px rgba(0,0,0,.2);font-weight:bold}
+  button:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+  .card{background:#fff;padding:22px 26px;border-radius:12px;
+       box-shadow:0 6px 24px rgba(0,0,0,.18);margin-bottom:18px}
+  .card-num{color:#764ba2;font-weight:bold;font-size:.85em;margin-bottom:6px}
+  .card-headline{font-size:1.45em;line-height:1.35;color:#1e3c72;font-weight:bold;margin-bottom:12px}
+  .card-sources{font-size:.82em;color:#666;border-top:1px solid #eee;padding-top:10px}
+  .card-sources .source-label{font-weight:bold;color:#2a5298}
+  .card-sources small{color:#888}
+  .card-sources a{color:#2a5298;text-decoration:none;border-bottom:1px dotted #9bb1d4}
+  .card-sources a:hover{border-bottom-style:solid}
+  .stats{background:rgba(255,255,255,.1);color:#fff;padding:15px;border-radius:8px;
+       text-align:center;font-size:.9em}
+  .freshness{color:#fff;opacity:.7;font-size:.8em;text-align:center;margin-top:10px}
+  @media(max-width:768px){h1{font-size:2.5em}.card-headline{font-size:1.25em}}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🍀 LuckNooz</h1>
+    <p class="tagline">Where serendipity meets the news cycle</p>
+  </header>
+
+  <div class="controls">
+    <button id="gen">🎲 Show 20 Headlines</button>
+    <button id="copy">📋 Copy All 20</button>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="stats" id="stats"></div>
+  <div class="freshness" id="freshness"></div>
+</div>
+
+<script id="data" type="application/json">/*__LUCKNOOZ_DATA__*/</script>
+<script>
+/* ---- Display finished headlines -----------------------------------------
+   The generator (Claude) already produced complete recombined headlines and
+   stored them in data.headlines. The browser does NO assembly — it just
+   shuffles the pool and shows 20 at a time, each with its two source
+   headlines. */
+
+const data = JSON.parse(document.getElementById('data').textContent);
+const ALL = data.headlines || [];
+
+function escapeHtml(str){
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* Render the COMPLETE source headline. If we captured the article URL, make it
+   a link that opens the real story in a new tab (so LuckNooz stays open behind
+   it); otherwise show the full text as plain quoted text. */
+function sourceLink(text, url){
+  const full = '“'+escapeHtml(text||'')+'”';
+  if(url && /^https?:\/\//i.test(url)){
+    return '<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener noreferrer">'+full+'</a>';
+  }
+  return full;
+}
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function pool(){
+  return ALL;
+}
+
+let lastBatch = [];
+
+function generate(){
+  const items = shuffle(pool()).slice(0,20);
+  const list = document.getElementById('list');
+  if(!items.length){
+    list.innerHTML = '<div class="card"><div class="card-headline">No headlines for this category yet!</div></div>';
+    lastBatch = [];
+    return;
+  }
+  let html = '';
+  lastBatch = [];
+  items.forEach((h,idx)=>{
+    const i = idx+1;
+    lastBatch.push(i + '. ' + h.headline +
+      '\n   [subject: ' + (h.subject_orig||'') + ']' +
+      '\n   [predicate: ' + (h.predicate_orig||'') + ']');
+    html +=
+      '<div class="card">'+
+        '<div class="card-num">#'+i+'</div>'+
+        '<div class="card-headline">'+escapeHtml(h.headline)+'</div>'+
+        '<div class="card-sources">'+
+          '<div><span class="source-label">Subject from:</span> '+escapeHtml(h.subject_src||'')+
+            ' <small>— '+sourceLink(h.subject_orig, h.subject_link)+'</small></div>'+
+          '<div><span class="source-label">Predicate from:</span> '+escapeHtml(h.predicate_src||'')+
+            ' <small>— '+sourceLink(h.predicate_orig, h.predicate_link)+'</small></div>'+
+        '</div>'+
+      '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function refreshStats(){
+  document.getElementById('stats').textContent =
+    pool().length + ' recombined headlines — showing 20 at random';
+}
+
+document.getElementById('gen').addEventListener('click', generate);
+document.getElementById('copy').addEventListener('click',()=>{
+  if(!lastBatch.length){ alert('Show headlines first!'); return; }
+  navigator.clipboard.writeText(lastBatch.join('\n\n')).then(()=>alert('All 20 copied (with sources)!'));
+});
+
+if(data.metadata && data.metadata.generated_at){
+  document.getElementById('freshness').textContent =
+    'Headlines refreshed: '+ new Date(data.metadata.generated_at+'Z').toLocaleString();
+}
+refreshStats();
+generate();
+</script>
+</body>
+</html>
