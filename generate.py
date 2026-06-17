@@ -493,7 +493,63 @@ def combine_pair(client, a, b):
         r["predicate_link"] = pred_rec.get("link", "")
         clean.append(r)
     return clean
+def _assemble(subj_rec, pred_rec):
+    """Deterministically build one recombined headline: the SUBJECT side from
+    subj_rec crossed with the PREDICATE side (verb + rest) from pred_rec.
+    No model. Parts come straight from the splitter:
+      subject + [modal] + verb(+negation already attached) + rest
+    Verb agreement is fixed afterward by _fix_verb_agreement, using the NEW
+    subject's number. Capitalization of the first letter is normalized."""
+    subject = (subj_rec.get("subject") or "").strip()
+    modal = (pred_rec.get("modal") or "").strip()
+    verb = (pred_rec.get("verb") or "").strip()
+    rest = (pred_rec.get("rest") or "").strip()
+    if not subject or not verb:
+        return None
+    pieces = [subject]
+    if modal:
+        pieces.append(modal)
+    pieces.append(verb)
+    if rest:
+        pieces.append(rest)
+    headline = " ".join(pieces)
+    # Capitalize first character, leave the rest as-is.
+    if headline:
+        headline = headline[0].upper() + headline[1:]
+    return headline
 
+
+def combine_pair_deterministic(a, b):
+    """PASS 2, deterministic. Cross two split headlines BOTH ways with pure
+    Python assembly — no LLM. Returns list of result dicts shaped exactly like
+    the old combine_pair output, so the rest of the pipeline is unchanged."""
+    originals = {a["original"].strip().lower(), b["original"].strip().lower()}
+
+    # Two crossings: A-subject + B-predicate, and B-subject + A-predicate.
+    candidates = [(a, b), (b, a)]
+    clean = []
+    for subj_rec, pred_rec in candidates:
+        headline = _assemble(subj_rec, pred_rec)
+        if not headline:
+            continue
+        # Reject a non-cross / verbatim echo of either input headline.
+        if headline.strip().lower() in originals:
+            continue
+        # Deterministic verb agreement to the NEW subject's number.
+        headline = _fix_verb_agreement(
+            headline, pred_rec.get("verb", ""),
+            bool(subj_rec.get("plural", False)))
+        r = {
+            "headline": headline,
+            "subject_src": subj_rec["source"],
+            "subject_orig": subj_rec["original"],
+            "subject_link": subj_rec.get("link", ""),
+            "predicate_src": pred_rec["source"],
+            "predicate_orig": pred_rec["original"],
+            "predicate_link": pred_rec.get("link", ""),
+        }
+        clean.append(r)
+    return clean
 
 def build_data():
     key = os.environ.get("ANTHROPIC_API_KEY")
@@ -523,7 +579,7 @@ def build_data():
     # PASS 2: recombine each pair.
     results = []
     for n, (a, b) in enumerate(pairs, 1):
-        recs = combine_pair(client, a, b)
+        recs = combine_pair_deterministic(a, b)
         for rec in recs:
             if rec.get("headline"):
                 rec["category"] = "all"
