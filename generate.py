@@ -410,6 +410,23 @@ def _fix_verb_agreement(headline, predicate_verb, plural):
     parts = predicate_verb.split()
     target = parts[0] if parts and parts[0].lower() in (
         "is", "are", "was", "were", "has", "have", "do", "does") else parts[-1] if parts else predicate_verb
+
+    # GUARD (Bug 1a): if the verb is governed by a modal or preceded by "to",
+    # it must be BASE FORM and takes no number agreement. The bare verb token
+    # alone can't reveal this — we must look at the word before it in the actual
+    # headline ("should makes" -> "should make", "to saves" -> "to save").
+    _MODALS = {"will", "would", "can", "could", "may", "might",
+               "must", "shall", "should", "to"}
+    m = _re_mod.search(r'(\b\w+\b)\s+\b' + _re_mod.escape(target) + r'\b', headline)
+    if m and m.group(1).lower() in _MODALS:
+        lemmas = _lemm().getLemma(target.lower(), upos="VERB")
+        base = lemmas[0] if lemmas else target.lower()
+        if base != target.lower():
+            base = _match_case(target, base)
+            pat = _re_mod.compile(r'\b' + _re_mod.escape(target) + r'\b')
+            return pat.sub(base, headline, count=1)
+        return headline  # already base form, nothing to do
+
     new = _agree_present_verb(target, plural)
     if not new or new == target:
         return headline
