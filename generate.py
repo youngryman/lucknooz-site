@@ -550,7 +550,56 @@ def combine_pair_deterministic(a, b):
         }
         clean.append(r)
     return clean
+def _verb_forms(verb):
+    """Pre-compute singular (VBZ) and plural (VBP) forms of the pivot verb,
+    server-side, so the browser needs no conjugation logic. Negation and any
+    leading words are preserved; only the finite verb token is inflected.
+    Returns (sing, plur)."""
+    if not verb:
+        return verb, verb
+    parts = verb.split()
+    idx = 0 if parts and parts[0].lower() in (
+        "is", "are", "was", "were", "has", "have", "do", "does") else len(parts) - 1
+    target = parts[idx]
+    sing = _agree_present_verb(target, False) or target
+    plur = _agree_present_verb(target, True) or target
 
+    def rebuild(newtok):
+        p = list(parts)
+        p[idx] = newtok
+        return " ".join(p)
+    return rebuild(sing), rebuild(plur)
+
+
+def build_parts(splits):
+    """Emit split records as two part-pools (subjects, predicates) for
+    browser-side crossing. Each part carries an origin id so the JS engine can
+    enforce same-origin rejection (never cross a subject with the predicate
+    from its own source headline). Predicates ship BOTH verb forms."""
+    subjects, predicates = [], []
+    for i, s in enumerate(splits):
+        if not s.get("verb") or not s.get("subject"):
+            continue
+        sing, plur = _verb_forms(s.get("verb", ""))
+        subjects.append({
+            "id": i,
+            "text": s["subject"],
+            "plural": bool(s.get("plural", False)),
+            "src": s.get("source", ""),
+            "orig": s.get("original", ""),
+            "link": s.get("link", ""),
+        })
+        predicates.append({
+            "id": i,
+            "modal": s.get("modal", ""),
+            "verb_sing": sing,
+            "verb_plur": plur,
+            "rest": s.get("rest", ""),
+            "src": s.get("source", ""),
+            "orig": s.get("original", ""),
+            "link": s.get("link", ""),
+        })
+    return subjects, predicates
 def build_data():
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -587,7 +636,7 @@ def build_data():
         if n % 10 == 0:
             print(f"  combined {n}/{len(pairs)} pairs "
                   f"({len(results)} headlines)", file=sys.stderr)
-
+    subjects, predicates = build_parts(splits)
     return {
         "headlines": results,
         "metadata": {
