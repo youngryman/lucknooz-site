@@ -13,7 +13,7 @@
   h1{font-size:3.5em;margin-bottom:10px;text-shadow:2px 2px 4px rgba(0,0,0,.3);letter-spacing:2px}
   .tagline{font-size:1.1em;opacity:.9;font-style:italic}
   .controls{display:flex;gap:15px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
-  button{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;
+  button{background:#2a2a2a;color:#fff;border:none;
        padding:15px 35px;font-size:1.1em;border-radius:50px;cursor:pointer;
        transition:all .3s;box-shadow:0 4px 15px rgba(0,0,0,.2);font-weight:bold}
   button:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
@@ -40,7 +40,7 @@
   </header>
 
   <div class="controls">
-    <button id="gen">🎲 Show 20 Headlines</button>
+    <button id="gen">🎲 Shuffle 20 Headlines</button>
     <button id="copy">📋 Copy All 20</button>
   </div>
 
@@ -52,28 +52,57 @@
 
 <script id="data" type="application/json">/*__LUCKNOOZ_DATA__*/</script>
 <script>
-/* ---- Display finished headlines -----------------------------------------
-   The generator (Claude) already produced complete recombined headlines and
-   stored them in data.headlines. The browser does NO assembly — it just
-   shuffles the pool and shows 20 at a time, each with its two source
-   headlines. */
-
 const data = JSON.parse(document.getElementById('data').textContent);
-const ALL = data.headlines || [];
+const SUBJECTS   = data.subjects   || [];
+const PREDICATES = data.predicates || [];
+const LEGACY     = data.headlines  || [];
+const HAVE_PARTS = SUBJECTS.length > 0 && PREDICATES.length > 0;
 
 function escapeHtml(str){
   return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-/* Render the COMPLETE source headline. If we captured the article URL, make it
-   a link that opens the real story in a new tab (so LuckNooz stays open behind
-   it); otherwise show the full text as plain quoted text. */
 function sourceLink(text, url){
-  const full = '“'+escapeHtml(text||'')+'”';
+  const full = '\u201C'+escapeHtml(text||'')+'\u201D';
   if(url && /^https?:\/\//i.test(url)){
     return '<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener noreferrer">'+full+'</a>';
   }
   return full;
+}
+
+function randItem(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+function pickVerb(pred, subjPlural){
+  if(pred.modal) return pred.verb_plur || pred.verb_sing || '';
+  return subjPlural ? (pred.verb_plur || '') : (pred.verb_sing || '');
+}
+
+function mintCross(){
+  let subj, pred, tries = 0;
+  do {
+    subj = randItem(SUBJECTS);
+    pred = randItem(PREDICATES);
+    tries++;
+  } while(subj.id === pred.id && tries < 50);
+  if(subj.id === pred.id) return null;
+
+  const verb = pickVerb(pred, subj.plural);
+  const pieces = [subj.text];
+  if(pred.modal) pieces.push(pred.modal);
+  if(verb)       pieces.push(verb);
+  if(pred.rest)  pieces.push(pred.rest);
+  let headline = pieces.join(' ');
+  if(headline) headline = headline.charAt(0).toUpperCase() + headline.slice(1);
+
+  return {
+    headline:      headline,
+    subject_src:   subj.src,
+    subject_orig:  subj.orig,
+    subject_link:  subj.link,
+    predicate_src: pred.src,
+    predicate_orig:pred.orig,
+    predicate_link:pred.link
+  };
 }
 
 function shuffle(arr){
@@ -85,17 +114,27 @@ function shuffle(arr){
   return a;
 }
 
-function pool(){
-  return ALL;
+function makeBatch(n){
+  if(!HAVE_PARTS){
+    return shuffle(LEGACY).slice(0, n);
+  }
+  const out = [];
+  let guard = 0;
+  while(out.length < n && guard < n*20){
+    const c = mintCross();
+    if(c && c.headline) out.push(c);
+    guard++;
+  }
+  return out;
 }
 
 let lastBatch = [];
 
 function generate(){
-  const items = shuffle(pool()).slice(0,20);
+  const items = makeBatch(20);
   const list = document.getElementById('list');
   if(!items.length){
-    list.innerHTML = '<div class="card"><div class="card-headline">No headlines for this category yet!</div></div>';
+    list.innerHTML = '<div class="card"><div class="card-headline">No headlines available yet!</div></div>';
     lastBatch = [];
     return;
   }
@@ -112,9 +151,9 @@ function generate(){
         '<div class="card-headline">'+escapeHtml(h.headline)+'</div>'+
         '<div class="card-sources">'+
           '<div><span class="source-label">Subject from:</span> '+escapeHtml(h.subject_src||'')+
-            ' <small>— '+sourceLink(h.subject_orig, h.subject_link)+'</small></div>'+
+            ' <small>\u2014 '+sourceLink(h.subject_orig, h.subject_link)+'</small></div>'+
           '<div><span class="source-label">Predicate from:</span> '+escapeHtml(h.predicate_src||'')+
-            ' <small>— '+sourceLink(h.predicate_orig, h.predicate_link)+'</small></div>'+
+            ' <small>\u2014 '+sourceLink(h.predicate_orig, h.predicate_link)+'</small></div>'+
         '</div>'+
       '</div>';
   });
@@ -122,8 +161,15 @@ function generate(){
 }
 
 function refreshStats(){
-  document.getElementById('stats').textContent =
-    pool().length + ' recombined headlines — showing 20 at random';
+  const stats = document.getElementById('stats');
+  if(HAVE_PARTS){
+    const combos = SUBJECTS.length * PREDICATES.length;
+    stats.textContent =
+      SUBJECTS.length + ' subjects \u00D7 ' + PREDICATES.length + ' predicates \u2248 ' +
+      combos.toLocaleString() + ' possible headlines \u2014 shuffling 20 at a time';
+  } else {
+    stats.textContent = LEGACY.length + ' recombined headlines \u2014 showing 20 at random';
+  }
 }
 
 document.getElementById('gen').addEventListener('click', generate);
@@ -134,7 +180,7 @@ document.getElementById('copy').addEventListener('click',()=>{
 
 if(data.metadata && data.metadata.generated_at){
   document.getElementById('freshness').textContent =
-    'Headlines refreshed: '+ new Date(data.metadata.generated_at+'Z').toLocaleString();
+    'Parts refreshed: '+ new Date(data.metadata.generated_at+'Z').toLocaleString();
 }
 refreshStats();
 generate();

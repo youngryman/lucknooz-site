@@ -249,6 +249,14 @@ def split_headline(text):
     if clean_subject and len(clean_subject.split()) > MAX_SUBJECT_WORDS:
         return _verbless(clean)
 
+    # NO-PREDICATE GUARD (Bug A). If the verb sits at the end of the headline
+    # with no real REST after it, the "subject" swallowed the whole clause and
+    # there is no genuine predicate to cross. Catches "...compensation began"
+    # and similar verb-at-end fragments. Set aside as verbless.
+    clean_rest = _clean_surface(rest)
+    if clean_subject and len(clean_rest.split()) < 1:
+        return _verbless(clean)
+
     return {
         "subject": clean_subject,
         "modal": modal.strip(),

@@ -22,6 +22,7 @@ import json
 import random
 import datetime
 
+import re
 import feedparser
 import anthropic
 
@@ -50,6 +51,7 @@ FEEDS = {
         ("variety.com",         "https://variety.com/feed/"),
         ("www.rollingstone.com","https://www.rollingstone.com/feed/"),
         ("pagesix.com",         "https://pagesix.com/feed/"),
+        ("tmz.com",             "https://www.tmz.com/rss.xml"),
         ("usmagazine.com",      "https://www.usmagazine.com/feed/"),
         ("justjared.com",       "https://www.justjared.com/feed/"),
     ],
@@ -396,6 +398,20 @@ def _agree_present_verb(verb, plural):
     return _match_case(verb, want)
 
 
+_VBP_PRONOUN_SUBJECTS = {"i", "you", "we", "they"}
+
+def _effective_plural(subject, plural):
+    """B1: I/you/we/they take the bare VBP verb form even when singular
+    ("I explore", not "I explores"). The agreement engine only knows
+    singular-vs-plural, so route these pronoun subjects through the plural
+    branch (which selects VBP). He/she/it keep their real number."""
+    first = (subject or "").strip().split()
+    head = first[0].lower().strip(".,:;!?'\"()") if first else ""
+    if head in _VBP_PRONOUN_SUBJECTS:
+        return True
+    return plural
+
+
 def _fix_verb_agreement(headline, predicate_verb, plural):
     """Replace the predicate's pivoting verb in the headline with a form that
     agrees with the NEW subject's number. We know the exact verb token from the
@@ -483,7 +499,7 @@ def combine_pair(client, a, b):
         # 'John Stamos Shake', 'Trump Administration get'.
         r["headline"] = _fix_verb_agreement(
             r["headline"], pred_rec.get("verb", ""),
-            bool(subj_rec.get("plural", False)))
+            _effective_plural(subj_rec.get("subject", ""), bool(subj_rec.get("plural", False))))
         # Authoritative source text + link, taken from harvest — not the model.
         r["subject_src"] = subj_rec["source"]
         r["subject_orig"] = subj_rec["original"]
@@ -513,6 +529,9 @@ def _assemble(subj_rec, pred_rec):
     if rest:
         pieces.append(rest)
     headline = " ".join(pieces)
+    headline = re.sub(r"\s+n.t\b", "n't", headline)
+    headline = re.sub(r"\s+([,.;:!?])", r"\1", headline)
+    headline = re.sub(r"\s{2,}", " ", headline)
     # Capitalize first character, leave the rest as-is.
     if headline:
         headline = headline[0].upper() + headline[1:]
@@ -538,7 +557,7 @@ def combine_pair_deterministic(a, b):
         # Deterministic verb agreement to the NEW subject's number.
         headline = _fix_verb_agreement(
             headline, pred_rec.get("verb", ""),
-            bool(subj_rec.get("plural", False)))
+            _effective_plural(subj_rec.get("subject", ""), bool(subj_rec.get("plural", False))))
         r = {
             "headline": headline,
             "subject_src": subj_rec["source"],
