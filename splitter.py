@@ -242,6 +242,19 @@ def split_headline(text):
     if not verb_text:
         return _verbless(clean)
 
+    # REPORTING-VERB REJECT. If the pivot verb is a bare attribution verb,
+    # the parser rooted on an attribution that strands the real clause,
+    # producing predicates like "say major bridge destroyed". Set aside as
+    # verbless so this split never enters the pools. ("show/shows" handled
+    # separately at predicate-pool time, since it's a valid subject verb.)
+    _REPORTING = {
+        "say", "says", "said", "report", "reports", "reported",
+        "confirm", "confirms", "confirmed", "announce", "announces",
+        "announced", "claim", "claims", "claimed", "warn", "warns", "warned",
+    }
+    if verb_text and verb_text.strip().split()[0].lower() in _REPORTING:
+        return _verbless(clean)
+
     # QUALITY CUTOFF. A subject longer than MAX_SUBJECT_WORDS almost always means
     # the parser grabbed a late/wrong verb and swept half the headline into the
     # subject. Set such splits aside as verbless rather than crossing them badly.

@@ -28,6 +28,52 @@ import anthropic
 
 import splitter  # deterministic spaCy-based headline splitter (PASS 1)
 
+# ── Defamation screen ───────────────────────────
+# Blocks minted headlines that pair a named person (subject slot) with an
+# accusation verb — i.e. fabricated damaging claims about a real individual.
+# Loads its OWN spaCy pipeline WITH NER (the splitter disables NER, so its
+# nlp object can't see PERSON entities and cannot be reused here).
+ACCUSATION_VERBS = {
+    'accuse', 'accused', 'charge', 'charged', 'arrest', 'arrested',
+    'indict', 'indicted', 'allege', 'alleged', 'convict', 'convicted',
+    'kill', 'killed', 'murder', 'murdered', 'assault', 'assaulted',
+    'rape', 'raped', 'abuse', 'abused', 'steal', 'stole', 'stolen',
+    'defraud', 'defrauded', 'lie', 'lied', 'bribe', 'bribed',
+    'smuggle', 'smuggled', 'launder', 'laundered', 'embezzle', 'embezzled',
+    'attack', 'attacked', 'beat', 'beaten', 'stab', 'stabbed', 'shoot', 'shot'
+}
+
+_SCREEN_NLP = None
+
+def _screen_nlp():
+    """Lazily load a spaCy pipeline WITH NER for the defamation screen."""
+    global _SCREEN_NLP
+    if _SCREEN_NLP is None:
+        import spacy
+        _SCREEN_NLP = spacy.load("en_core_web_sm")  # NER enabled (no disable)
+    return _SCREEN_NLP
+
+def is_defamatory(headline_text, subject_text):
+    """Block when a named person in the subject slot is paired with an
+    accusation verb anywhere in the minted headline."""
+    if not headline_text:
+        return False
+    doc = _screen_nlp()(headline_text)
+    person_ents = [ent for ent in doc.ents if ent.label_ == 'PERSON']
+    if not person_ents:
+        return False
+    subj = (subject_text or "").strip()
+    person_in_subject = any(ent.text in subj or subj in ent.text
+                            for ent in person_ents) if subj else True
+    if not person_in_subject:
+        return False
+    for token in doc:
+        if (token.lemma_.lower() in ACCUSATION_VERBS
+                or token.text.lower() in ACCUSATION_VERBS):
+            return True
+    return False
+# ─────────────────────────────────────────────────────
+
 # ---------------------------------------------------------------------------
 # Feeds (same set as before) — category -> [(source_label, feed_url), ...]
 # ---------------------------------------------------------------------------
@@ -566,6 +612,7 @@ def combine_pair_deterministic(a, b):
             "predicate_src": pred_rec["source"],
             "predicate_orig": pred_rec["original"],
             "predicate_link": pred_rec.get("link", ""),
+            "subject": subj_rec.get("subject", ""),
         }
         clean.append(r)
     return clean
@@ -600,6 +647,12 @@ def build_parts(splits):
         if not s.get("verb") or not s.get("subject"):
             continue
         sing, plur = _verb_forms(s.get("verb", ""))
+        # Predicate-pool "shows" reject: a predicate led by show/shows/showed
+        # is the stranded-attribution wreck ("Video Shows say ..."). Keep the
+        # record as a SUBJECT (its own "X shows Y" is fine) but do not let it
+        # enter the PREDICATE pool.
+        _vbase = (s.get("verb", "") or "").strip().split()
+        _skip_pred = bool(_vbase) and _vbase[0].lower() in ("show", "shows", "showed")
         subjects.append({
             "id": i,
             "text": s["subject"],
@@ -608,6 +661,8 @@ def build_parts(splits):
             "orig": s.get("original", ""),
             "link": s.get("link", ""),
         })
+        if _skip_pred:
+            continue
         predicates.append({
             "id": i,
             "modal": s.get("modal", ""),
@@ -650,6 +705,8 @@ def build_data():
         recs = combine_pair_deterministic(a, b)
         for rec in recs:
             if rec.get("headline"):
+                if is_defamatory(rec["headline"], rec.get("subject", "")):
+                    continue
                 rec["category"] = "all"
                 results.append(rec)
         if n % 10 == 0:
