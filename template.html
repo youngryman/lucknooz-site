@@ -57,6 +57,19 @@ const SUBJECTS   = data.subjects   || [];
 const PREDICATES = data.predicates || [];
 const LEGACY     = data.headlines  || [];
 const HAVE_PARTS = SUBJECTS.length > 0 && PREDICATES.length > 0;
+const ACCUSATION_VERBS = new Set((data.accusation_verbs || []).map(v => v.toLowerCase()));
+
+// Mirror of the Python is_defamatory screen: block a cross when the subject
+// names a real person AND the predicate carries an accusation verb. Surface-
+// string match (no lemmatizer in browser; the verb set ships inflected forms).
+function crossIsDefamatory(subj, pred){
+  if(!subj || !subj.is_person) return false;
+  const hay = ((pred.verb_sing||'') + ' ' + (pred.verb_plur||'') + ' ' +
+               (pred.rest||'') + ' ' + (pred.modal||'')).toLowerCase();
+  const words = hay.split(/[^a-z']+/);
+  for(const w of words){ if(ACCUSATION_VERBS.has(w)) return true; }
+  return false;
+}
 
 function escapeHtml(str){
   return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -83,8 +96,9 @@ function mintCross(){
     subj = randItem(SUBJECTS);
     pred = randItem(PREDICATES);
     tries++;
-  } while(subj.id === pred.id && tries < 50);
-  if(subj.id === pred.id) return null;
+  } while((subj.id === pred.id || crossIsDefamatory(subj, pred)) && tries < 50);
+  // Reject same-origin crosses and defamatory crosses (person + accusation).
+  if(subj.id === pred.id || crossIsDefamatory(subj, pred)) return null;
 
   const verb = pickVerb(pred, subj.plural);
   const pieces = [subj.text];

@@ -72,6 +72,21 @@ def is_defamatory(headline_text, subject_text):
                 or token.text.lower() in ACCUSATION_VERBS):
             return True
     return False
+
+
+def _subject_is_person(subject_text):
+    """True if the subject fragment names a real individual (spaCy PERSON).
+    Used to pre-compute an is_person flag shipped to the browser, so the
+    client-side screen needs no NLP."""
+    s = (subject_text or "").strip()
+    if not s:
+        return False
+    doc = _screen_nlp()(s)
+    if any(ent.label_ == 'PERSON' for ent in doc.ents):
+        return True
+    # Fragment-alone NER is weak; retry in a minimal sentence frame.
+    doc2 = _screen_nlp()(s + " spoke today.")
+    return any(ent.label_ == 'PERSON' and ent.text in s for ent in doc2.ents)
 # ─────────────────────────────────────────────────────
 
 # ---------------------------------------------------------------------------
@@ -657,6 +672,7 @@ def build_parts(splits):
             "id": i,
             "text": s["subject"],
             "plural": bool(s.get("plural", False)),
+            "is_person": _subject_is_person(s["subject"]),
             "src": s.get("source", ""),
             "orig": s.get("original", ""),
             "link": s.get("link", ""),
@@ -715,9 +731,14 @@ def build_data():
     subjects, predicates = build_parts(splits)
     return {
         "headlines": results,
+        "subjects": subjects,
+        "predicates": predicates,
+        "accusation_verbs": sorted(ACCUSATION_VERBS),
         "metadata": {
             "generated_at": datetime.datetime.utcnow().isoformat(),
             "total": len(results),
+            "subject_count": len(subjects),
+            "predicate_count": len(predicates),
         },
     }
 
