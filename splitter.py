@@ -262,6 +262,34 @@ def split_headline(text):
     if clean_subject and len(clean_subject.split()) > MAX_SUBJECT_WORDS:
         return _verbless(clean)
 
+    # PRONOUN / INTERROGATIVE SUBJECT REJECT. A bare deictic or question-word
+    # subject ("Who", "They", "You", "That", "It"...) points at an antecedent
+    # the cross destroys, producing fragments like "Who Picks Up as Inflation
+    # Hits..." or "You tracks oxygen...". Reject when the WHOLE subject is one
+    # of these words. Demonstrative+noun ("This four-winged dinosaur") is fine
+    # and survives, because we test the entire subject, not just its first word.
+    _BARE_SUBJ_REJECT = {
+        "who", "whom", "whose", "what", "which",
+        "they", "them", "you", "it", "he", "she", "we", "i",
+        "this", "that", "these", "those", "here", "there",
+    }
+    if clean_subject and clean_subject.strip().lower() in _BARE_SUBJ_REJECT:
+        return _verbless(clean)
+
+    # PRONOUN / INTERROGATIVE SUBJECT REJECT. A bare deictic or question-word
+    # subject ("Who", "They", "You", "That", "It"...) points at an antecedent
+    # the cross destroys, producing fragments like "Who Picks Up as Inflation
+    # Hits..." or "You tracks oxygen...". Reject when the WHOLE subject is one
+    # of these words. Demonstrative+noun ("This four-winged dinosaur") is fine
+    # and survives, because we test the entire subject, not just its first word.
+    _BARE_SUBJ_REJECT = {
+        "who", "whom", "whose", "what", "which",
+        "they", "them", "you", "it", "he", "she", "we", "i",
+        "this", "that", "these", "those", "here", "there",
+    }
+    if clean_subject and clean_subject.strip().lower() in _BARE_SUBJ_REJECT:
+        return _verbless(clean)
+
     # NO-PREDICATE GUARD (Bug A). If the verb sits at the end of the headline
     # with no real REST after it, the "subject" swallowed the whole clause and
     # there is no genuine predicate to cross. Catches "...compensation began"
