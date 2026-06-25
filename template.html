@@ -3,51 +3,143 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Unknowable News</title>
+<title>The Daily Chance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,500&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Spectral+SC:wght@500;600&display=swap" rel="stylesheet">
 <style>
+  :root{
+    --paper:#f3efe4;
+    --paper-dim:#e9e3d4;
+    --ink:#1a1714;
+    --ink-soft:#46403a;
+    --ink-faint:#8a8073;
+    --rule:#1a1714;
+    --accent:#7c1f17;
+    --spark:#d8a13a;
+  }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:Georgia,serif;background:linear-gradient(135deg,#1e3c72,#2a5298);
-       min-height:100vh;padding:20px;color:#333}
-  .container{max-width:900px;margin:0 auto}
-  header{text-align:center;margin-bottom:40px;color:#fff}
-  h1{font-size:3.5em;margin-bottom:10px;text-shadow:2px 2px 4px rgba(0,0,0,.3);letter-spacing:2px}
-  .tagline{font-size:1.1em;opacity:.9;font-style:italic}
-  .controls{display:flex;gap:15px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
-  button{background:#2a2a2a;color:#fff;border:none;
-       padding:15px 35px;font-size:1.1em;border-radius:50px;cursor:pointer;
-       transition:all .3s;box-shadow:0 4px 15px rgba(0,0,0,.2);font-weight:bold}
-  button:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
-  .card{background:#fff;padding:22px 26px;border-radius:12px;
-       box-shadow:0 6px 24px rgba(0,0,0,.18);margin-bottom:18px}
-  .card-num{color:#764ba2;font-weight:bold;font-size:.85em;margin-bottom:6px}
-  .card-headline{font-size:1.45em;line-height:1.35;color:#1e3c72;font-weight:bold;margin-bottom:12px}
-  .card-sources{font-size:.82em;color:#666;border-top:1px solid #eee;padding-top:10px}
-  .card-sources .source-label{font-weight:bold;color:#2a5298}
-  .card-sources small{color:#888}
-  .card-sources a{color:#2a5298;text-decoration:none;border-bottom:1px dotted #9bb1d4}
-  .card-sources a:hover{border-bottom-style:solid}
-  .stats{background:rgba(255,255,255,.1);color:#fff;padding:15px;border-radius:8px;
-       text-align:center;font-size:.9em}
-  .freshness{color:#fff;opacity:.7;font-size:.8em;text-align:center;margin-top:10px}
-  @media(max-width:768px){h1{font-size:2.5em}.card-headline{font-size:1.25em}}
+  html{-webkit-font-smoothing:antialiased}
+  body{
+    background:var(--paper);color:var(--ink);
+    font-family:'Spectral',Georgia,serif;line-height:1.5;
+    padding:0 18px 60px;
+    background-image:radial-gradient(rgba(0,0,0,.015) 1px,transparent 1px);
+    background-size:3px 3px;
+  }
+  .sheet{max-width:880px;margin:0 auto}
+
+  /* ---- Nameplate ---- */
+  .plate{padding:26px 0 0;text-align:center}
+  .plate .folio-top{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-family:'Spectral SC',serif;font-size:.72rem;letter-spacing:.08em;
+    color:var(--ink-soft);text-transform:uppercase;
+    border-bottom:1px solid var(--rule);padding-bottom:6px;margin-bottom:14px;
+  }
+  h1.nameplate{
+    font-family:'Playfair Display',serif;font-weight:900;
+    font-size:clamp(2.6rem,8vw,5.2rem);line-height:.92;letter-spacing:-.01em;
+    margin:2px 0 6px;
+  }
+  .plate .tagline{
+    font-family:'Spectral',serif;font-style:italic;font-size:1.05rem;
+    color:var(--ink-soft);
+  }
+  .roll{
+    font-style:italic;color:var(--accent);font-weight:500;
+    display:inline-block;transition:opacity .55s ease;min-width:1px;
+  }
+  .roll.fading{opacity:0}
+  @media(prefers-reduced-motion:reduce){.roll{transition:none}}
+  .plate .rules{margin-top:16px;border-top:3px double var(--rule);
+    border-bottom:1px solid var(--rule);height:5px}
+
+  /* ---- Controls ---- */
+  .controls{display:flex;gap:0;justify-content:center;margin:26px 0 4px;
+    border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  button{
+    background:transparent;color:var(--ink);border:none;cursor:pointer;
+    font-family:'Spectral SC',serif;font-size:.82rem;letter-spacing:.08em;
+    text-transform:uppercase;padding:13px 24px;transition:background .15s,color .15s;
+  }
+  button#gen{border-right:1px solid var(--rule)}
+  button:hover{background:var(--ink);color:var(--paper)}
+  button .mk{color:var(--accent);font-weight:700;margin-right:7px}
+  button:hover .mk{color:var(--paper)}
+
+  /* ---- Stories (render markup kept identical to engine output) ---- */
+  #list{margin-top:8px}
+  .card{
+    display:grid;grid-template-columns:46px 1fr;gap:0 18px;
+    padding:22px 0 20px;border-bottom:1px solid rgba(26,23,20,.18);
+  }
+  .card-num{
+    font-family:'Playfair Display',serif;font-weight:700;font-size:1.5rem;
+    color:var(--accent);line-height:1;padding-top:.28em;text-align:right;
+  }
+  .card-headline{
+    font-family:'Playfair Display',serif;font-weight:700;
+    font-size:clamp(1.4rem,3.2vw,1.95rem);line-height:1.12;letter-spacing:-.005em;
+    margin-bottom:11px;
+  }
+  .card-sources{
+    font-family:'Spectral',serif;font-size:.86rem;color:var(--ink-soft);
+    line-height:1.55;border-top:1px dotted rgba(26,23,20,.3);padding-top:9px;
+  }
+  .card-sources .source-label{
+    font-family:'Spectral SC',serif;font-size:.74rem;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--accent);
+  }
+  .card-sources a{color:var(--ink);text-decoration:none;
+    border-bottom:1px solid rgba(124,31,23,.45)}
+  .card-sources a:hover{background:rgba(124,31,23,.1)}
+  .card-sources small{font-style:italic;color:var(--ink-faint)}
+
+  /* The card grid puts num in col 1, everything else needs to sit in col 2.
+     Wrap headline+sources so they share the second column. */
+  .card .card-body{grid-column:2;min-width:0}
+  .card .card-num{grid-column:1}
+
+  /* ---- Footer disclaimer ---- */
+  .endmark{text-align:center;font-family:'Spectral SC',serif;font-size:.85rem;
+    letter-spacing:.12em;color:var(--ink-faint);margin:30px 0 16px}
+  .disclaimer{
+    max-width:620px;margin:0 auto;text-align:center;
+    font-family:'Spectral',serif;font-style:italic;font-size:.92rem;
+    line-height:1.65;color:var(--ink-soft);
+    border-top:1px solid rgba(26,23,20,.18);padding-top:18px;
+  }
+  .disclaimer .term{font-style:normal;font-weight:500;color:var(--accent)}
+
+  @media(max-width:560px){
+    .card{grid-template-columns:30px 1fr;gap:0 12px}
+    .card-num{font-size:1.15rem}
+  }
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>Unknowable News Service</h1>
-    <p class="tagline">Transmogrified Headlines</p>
-  </header>
+<div class="sheet">
+  <div class="plate">
+    <div class="folio-top">
+      <span>Timeless</span>
+      <span>A Service of Luckism.org</span>
+      <span>Priceless</span>
+    </div>
+    <h1 class="nameplate">The Daily Chance</h1>
+    <p class="tagline">All the News That's Fit to <span id="roll" class="roll">Transmogrify</span></p>
+    <div class="rules"></div>
+  </div>
 
   <div class="controls">
-    <button id="gen">🎲 Shuffle 20 Headlines</button>
-    <button id="copy">📋 Copy All 20</button>
+    <button id="gen"><span class="mk">&#10022;</span>Show 20 More</button>
+    <button id="copy"><span class="mk">&para;</span>Copy All 20</button>
   </div>
 
   <div id="list"></div>
 
-  <div class="stats" id="stats"></div>
-  <div class="freshness" id="freshness"></div>
+  <div class="endmark">&mdash; 30 &mdash;</div>
+  <p class="disclaimer">These headlines are works of <span class="term">aleatoric art</span> &mdash; real words, real sources, fragmented and reassembled by a computer program without intention, assertion or author. No purpose except to demonstrate the operation of luck in life and possibly both entertain and enlighten. If meaning appears, it arrives the way all things do according to Luckism: by an unpredictable mix of order and chance.</p>
 </div>
 
 <script id="data" type="application/json">/*__LUCKNOOZ_DATA__*/</script>
@@ -97,7 +189,6 @@ function mintCross(){
     pred = randItem(PREDICATES);
     tries++;
   } while((subj.id === pred.id || crossIsDefamatory(subj, pred)) && tries < 50);
-  // Reject same-origin crosses and defamatory crosses (person + accusation).
   if(subj.id === pred.id || crossIsDefamatory(subj, pred)) return null;
 
   const verb = pickVerb(pred, subj.plural);
@@ -148,7 +239,7 @@ function generate(){
   const items = makeBatch(20);
   const list = document.getElementById('list');
   if(!items.length){
-    list.innerHTML = '<div class="card"><div class="card-headline">No headlines available yet!</div></div>';
+    list.innerHTML = '<div class="card"><div class="card-body"><div class="card-headline">No headlines available yet!</div></div></div>';
     lastBatch = [];
     return;
   }
@@ -161,29 +252,19 @@ function generate(){
       '\n   [predicate: ' + (h.predicate_orig||'') + ']');
     html +=
       '<div class="card">'+
-        '<div class="card-num">#'+i+'</div>'+
-        '<div class="card-headline">'+escapeHtml(h.headline)+'</div>'+
-        '<div class="card-sources">'+
-          '<div><span class="source-label">Subject from:</span> '+escapeHtml(h.subject_src||'')+
-            ' <small>\u2014 '+sourceLink(h.subject_orig, h.subject_link)+'</small></div>'+
-          '<div><span class="source-label">Predicate from:</span> '+escapeHtml(h.predicate_src||'')+
-            ' <small>\u2014 '+sourceLink(h.predicate_orig, h.predicate_link)+'</small></div>'+
+        '<div class="card-num">'+i+'</div>'+
+        '<div class="card-body">'+
+          '<div class="card-headline">'+escapeHtml(h.headline)+'</div>'+
+          '<div class="card-sources">'+
+            '<div><span class="source-label">Subject</span> '+escapeHtml(h.subject_src||'')+
+              ' <small>\u2014 '+sourceLink(h.subject_orig, h.subject_link)+'</small></div>'+
+            '<div><span class="source-label">Predicate</span> '+escapeHtml(h.predicate_src||'')+
+              ' <small>\u2014 '+sourceLink(h.predicate_orig, h.predicate_link)+'</small></div>'+
+          '</div>'+
         '</div>'+
       '</div>';
   });
   list.innerHTML = html;
-}
-
-function refreshStats(){
-  const stats = document.getElementById('stats');
-  if(HAVE_PARTS){
-    const combos = SUBJECTS.length * PREDICATES.length;
-    stats.textContent =
-      SUBJECTS.length + ' subjects \u00D7 ' + PREDICATES.length + ' predicates \u2248 ' +
-      combos.toLocaleString() + ' possible headlines \u2014 shuffling 20 at a time';
-  } else {
-    stats.textContent = LEGACY.length + ' recombined headlines \u2014 showing 20 at random';
-  }
 }
 
 document.getElementById('gen').addEventListener('click', generate);
@@ -192,11 +273,42 @@ document.getElementById('copy').addEventListener('click',()=>{
   navigator.clipboard.writeText(lastBatch.join('\n\n')).then(()=>alert('All 20 copied (with sources)!'));
 });
 
-if(data.metadata && data.metadata.generated_at){
-  document.getElementById('freshness').textContent =
-    'Parts refreshed: '+ new Date(data.metadata.generated_at+'Z').toLocaleString();
-}
-refreshStats();
+/* Rotating masthead verb */
+(function(){
+  const VERBS = ['Transmogrify','Fabricate','Falsify','Counterfeit','Recombine','Shuffle',
+                 'Mutate','Reconstruct','Splice','Randomize'];
+  const el = document.getElementById('roll');
+  if(!el) return;
+  const reduced = window.matchMedia &&
+                  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let current = el.textContent.trim();
+  function pick(){
+    let w; do { w = VERBS[Math.floor(Math.random()*VERBS.length)]; }
+    while(w === current);
+    return w;
+  }
+  function reserveWidth(){
+    const probe = document.createElement('span');
+    probe.style.cssText='visibility:hidden;position:absolute;font-style:italic;font-weight:500';
+    probe.style.font = getComputedStyle(el).font;
+    document.body.appendChild(probe);
+    let max = 0;
+    VERBS.forEach(v=>{ probe.textContent=v; max=Math.max(max, probe.offsetWidth); });
+    document.body.removeChild(probe);
+    el.style.minWidth = max + 'px';
+  }
+  reserveWidth();
+  if(reduced){ el.textContent = pick(); return; }
+  setInterval(()=>{
+    el.classList.add('fading');
+    setTimeout(()=>{
+      current = pick();
+      el.textContent = current;
+      el.classList.remove('fading');
+    }, 560);
+  }, 6500);
+})();
+
 generate();
 </script>
 </body>
