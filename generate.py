@@ -18,6 +18,7 @@ Requires the ANTHROPIC_API_KEY environment variable to be set.
 
 import os
 import sys
+import html
 import json
 import random
 import datetime
@@ -317,6 +318,15 @@ Return ONLY a JSON array (0, 1, or 2 objects), each with:
 """
 
 
+def clean_title(title):
+    """Strip HTML markup and decode entities from a raw feed title."""
+    if not title:
+        return title
+    no_tags = re.sub(r"<[^>]+>", "", title)
+    decoded = html.unescape(no_tags)
+    return re.sub(r"\s+", " ", decoded).strip()
+
+
 def harvest():
     """Fetch headlines. Returns list of dicts: {title, source, category}."""
     items = []
@@ -333,7 +343,7 @@ def harvest():
             for entry in parsed.entries:
                 if count >= MAX_PER_FEED:
                     break
-                title = getattr(entry, "title", "").strip()
+                title = clean_title(getattr(entry, "title", "").strip())
                 if not title or title in seen:
                     continue
                 seen.add(title)
