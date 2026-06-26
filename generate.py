@@ -662,6 +662,23 @@ def _verb_forms(verb):
     return rebuild(sing), rebuild(plur)
 
 
+def _base_after_modal(verb):
+    """Reduce a predicate verb to the BASE form a modal requires."""
+    if not verb:
+        return verb
+    parts = verb.split()
+    idx = len(parts) - 1
+    target = parts[idx]
+    if len(parts) >= 2 and parts[idx - 1].lower() in ("be", "been", "being"):
+        return verb
+    lemmas = _lemm().getLemma(target.lower(), upos="VERB")
+    base = lemmas[0] if lemmas else target.lower()
+    base = _match_case(target, base)
+    p = list(parts)
+    p[idx] = base
+    return " ".join(p)
+
+
 def build_parts(splits):
     """Emit split records as two part-pools (subjects, predicates) for
     browser-side crossing. Each part carries an origin id so the JS engine can
@@ -672,6 +689,9 @@ def build_parts(splits):
         if not s.get("verb") or not s.get("subject"):
             continue
         sing, plur = _verb_forms(s.get("verb", ""))
+        if (s.get("modal") or "").strip():
+            base = _base_after_modal(s.get("verb", ""))
+            sing = plur = base
         # Predicate-pool "shows" reject: a predicate led by show/shows/showed
         # is the stranded-attribution wreck ("Video Shows say ..."). Keep the
         # record as a SUBJECT (its own "X shows Y" is fine) but do not let it
