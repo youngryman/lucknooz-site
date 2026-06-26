@@ -303,9 +303,9 @@ document.getElementById('copy2').addEventListener('click', doCopy);
     let max = 0;
     VERBS.forEach(v=>{ probe.textContent=v; max=Math.max(max, probe.offsetWidth); });
     document.body.removeChild(probe);
-    el.style.minWidth = max + 'px';
+    /* width reservation disabled: let verb box hug its word so it sits tight after 'Fit to' */
   }
-  reserveWidth();
+  /* reserveWidth(); */
   if(reduced){ el.textContent = pick(); return; }
   setInterval(()=>{
     el.classList.add('fading');
