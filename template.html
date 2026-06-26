@@ -138,6 +138,11 @@
 
   <div id="list"></div>
 
+  <div class="controls controls-bottom">
+    <button id="gen2"><span class="mk">&#10022;</span>Show 20 More</button>
+    <button id="copy2"><span class="mk">&para;</span>Copy All 20</button>
+  </div>
+
   <div class="endmark">&mdash; 30 &mdash;</div>
   <p class="disclaimer">These headlines are works of <span class="term">aleatoric art</span> &mdash; real words, real sources, fragmented and reassembled by a computer program without intention, assertion or author. No purpose except to demonstrate the operation of luck in life and possibly both entertain and enlighten. If meaning appears, it arrives the way all things do according to Luckism: by an unpredictable mix of order and chance.</p>
 </div>
@@ -267,11 +272,14 @@ function generate(){
   list.innerHTML = html;
 }
 
-document.getElementById('gen').addEventListener('click', generate);
-document.getElementById('copy').addEventListener('click',()=>{
+function doCopy(){
   if(!lastBatch.length){ alert('Show headlines first!'); return; }
   navigator.clipboard.writeText(lastBatch.join('\n\n')).then(()=>alert('All 20 copied (with sources)!'));
-});
+}
+document.getElementById('gen').addEventListener('click', generate);
+document.getElementById('gen2').addEventListener('click', generate);
+document.getElementById('copy').addEventListener('click', doCopy);
+document.getElementById('copy2').addEventListener('click', doCopy);
 
 /* Rotating masthead verb */
 (function(){
