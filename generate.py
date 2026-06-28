@@ -96,9 +96,7 @@ def _subject_is_person(subject_text):
 FEEDS = {
     "core_news": [
         ("rss.nytimes.com",     "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"),
-        ("feeds.bbci.co.uk",    "https://feeds.bbci.co.uk/news/rss.xml"),
         ("www.theguardian.com", "https://www.theguardian.com/world/rss"),
-        ("feeds.npr.org",       "https://feeds.npr.org/1001/rss.xml"),
     ],
     "business": [
         ("feeds.a.dj.com",    "https://feeds.a.dj.com/rss/RSSWorldNews.xml"),
@@ -108,21 +106,21 @@ FEEDS = {
         ("www.sciencedaily.com",  "https://www.sciencedaily.com/rss/top/science.xml"),
         ("feeds.arstechnica.com", "https://feeds.arstechnica.com/arstechnica/index"),
         ("www.nature.com",        "https://www.nature.com/nature.rss"),
+        ("phys.org-space",   "https://phys.org/rss-feed/space-news/"),
+        ("phys.org-archaeo", "https://phys.org/rss-feed/science-news/archaeology/"),
+        ("sci.news",         "https://www.sci.news/feed"),
     ],
     "culture": [
-        ("variety.com",         "https://variety.com/feed/"),
         ("www.rollingstone.com","https://www.rollingstone.com/feed/"),
         ("pagesix.com",         "https://pagesix.com/feed/"),
         ("tmz.com",             "https://www.tmz.com/rss.xml"),
         ("usmagazine.com",      "https://www.usmagazine.com/feed/"),
         ("justjared.com",       "https://www.justjared.com/feed/"),
     ],
-    "sports": [
-        ("www.espn.com", "https://www.espn.com/espn/rss/news"),
-    ],
     "offbeat": [
         ("www.sciencedaily.com", "https://www.sciencedaily.com/rss/strange_offbeat.xml"),
         ("www.marinelink.com",   "https://www.marinelink.com/news/rss"),
+        ("upi-odd",      "https://rss.upi.com/news/odd_news.rss"),
     ],
     "world": [
         ("straitstimes.com",   "https://www.straitstimes.com/news/world/rss.xml"),
@@ -134,7 +132,6 @@ FEEDS = {
         ("france24.com",       "https://www.france24.com/en/rss"),
         ("timesofisrael.com",  "https://www.timesofisrael.com/feed/"),
         ("aljazeera.com",      "https://www.aljazeera.com/xml/rss/all.xml"),
-        ("ticotimes.net",      "https://ticotimes.net/feed"),
     ],
 }
 
