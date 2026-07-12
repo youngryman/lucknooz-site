@@ -25,6 +25,7 @@ import datetime
 
 import re
 import feedparser
+feedparser.USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 import anthropic
 
 import splitter  # deterministic spaCy-based headline splitter (PASS 1)
@@ -109,6 +110,7 @@ FEEDS = {
         ("phys.org-space",   "https://phys.org/rss-feed/space-news/"),
         ("phys.org-archaeo", "https://phys.org/rss-feed/science-news/archaeology/"),
         ("sci.news",         "https://www.sci.news/feed"),
+        ("agdaily.com",      "https://www.agdaily.com/feed/"),
     ],
     "culture": [
         ("www.rollingstone.com","https://www.rollingstone.com/feed/"),
