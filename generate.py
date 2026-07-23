@@ -113,11 +113,18 @@ FEEDS = {
         ("agdaily.com",      "https://www.agdaily.com/feed/"),
     ],
     "culture": [
+        ("RealClearReligion", "https://www.realclearreligion.org/index.xml"),
+        ("Deadline", "https://deadline.com/feed/"),
+        ("Hollywood Reporter", "https://www.hollywoodreporter.com/feed/"),
+        ("People", "http://rss.people.com/web/people/rss/topheadlines/index.xml"),
         ("www.rollingstone.com","https://www.rollingstone.com/feed/"),
+        ("Vanity Fair",         "https://www.vanityfair.com/feed/rss"),
         ("pagesix.com",         "https://pagesix.com/feed/"),
         ("tmz.com",             "https://www.tmz.com/rss.xml"),
         ("usmagazine.com",      "https://www.usmagazine.com/feed/"),
         ("justjared.com",       "https://www.justjared.com/feed/"),
+        ("religionnews.com",    "https://religionnews.com/feed/"),
+        ("Ecumenical News",     "https://www.ecumenicalnews.com/rss/feed"),
     ],
     "offbeat": [
         ("www.sciencedaily.com", "https://www.sciencedaily.com/rss/strange_offbeat.xml"),
@@ -134,6 +141,7 @@ FEEDS = {
         ("france24.com",       "https://www.france24.com/en/rss"),
         ("timesofisrael.com",  "https://www.timesofisrael.com/feed/"),
         ("aljazeera.com",      "https://www.aljazeera.com/xml/rss/all.xml"),
+        ("Africanews", "https://www.africanews.com/feed/rss"),
     ],
 }
 
@@ -607,6 +615,155 @@ def _assemble(subj_rec, pred_rec):
         headline = headline[0].upper() + headline[1:]
     return headline
 
+_PP_PREPS = {"of", "to", "in", "for", "with", "on", "at", "from", "by", 
+"about"}
+_PP_MAX_WORDS_FROM_END = 4
+_PP_CLAUSE_BREAK = re.compile(r"[,;:]|--|\u2014|\u2013")
+
+
+def _find_final_pp(headline):
+    """Return (core_words, pp_words, preposition) if headline ends in a
+    qualifying trailing prepositional phrase, else None."""
+    words = headline.split()
+    n = len(words)
+    last_break_idx = 0
+    for i, w in enumerate(words):
+        if _PP_CLAUSE_BREAK.search(w):
+            last_break_idx = i + 1
+    scan_start = last_break_idx
+    for i in range(n - 1, scan_start - 1, -1):
+        bare = re.sub(r"[^\w]", "", words[i]).lower()
+        if bare in _PP_PREPS:
+            words_after = n - 1 - i
+            if words_after <= _PP_MAX_WORDS_FROM_END:
+                core, pp = words[:i], words[i:]
+                return (core, pp, bare) if core and pp else None
+            return None
+    return None
+
+def _assemble_for_pp_scan(rec):
+    """Like _assemble, but does not require a verb — used only to locate a
+    trailing PP for combine_pair_pp_swap. Never used to build a final
+    headline (that still goes through 
+_assemble/combine_pair_deterministic,
+    which correctly requires a verb)."""
+    subject = (rec.get("subject") or "").strip()
+    modal = (rec.get("modal") or "").strip()
+    verb = (rec.get("verb") or "").strip()
+    rest = (rec.get("rest") or "").strip()
+    if not subject:
+        return None
+    pieces = [subject]
+    if modal:
+        pieces.append(modal)
+    if verb:
+        pieces.append(verb)
+    if rest:
+        pieces.append(rest)
+    headline = " ".join(pieces)
+    headline = re.sub(r"\s+n.t\b", "n't", headline)
+    headline = re.sub(r"\s+([,.;:!?])", r"\1", headline)
+    headline = re.sub(r"\s{2,}", " ", headline)
+    if headline:
+        headline = headline[0].upper() + headline[1:]
+    return headline
+def combine_pair_pp_swap(a, b):
+    """PASS 2, PP-swap alternative to verb-crossing. Keeps each split's
+    subject+verb+rest intact (no subject/predicate cross) and only swaps
+    the trailing prepositional phrase between a and b, when both end in a
+    qualifying PP with the same preposition. Mutually exclusive with
+    combine_pair_deterministic: callers should use this INSTEAD OF the verb
+    cross for a pair, never both."""
+    orig_a = _assemble_for_pp_scan(a)
+    orig_b = _assemble_for_pp_scan(b)
+    if not orig_a or not orig_b:
+        return []
+    pp_a = _find_final_pp(orig_a)
+    pp_b = _find_final_pp(orig_b)
+    if not pp_a or not pp_b:
+        return []
+    core_a, tail_a, prep_a = pp_a
+    core_b, tail_b, prep_b = pp_b
+    if prep_a != prep_b or tail_a == tail_b:
+        return []
+
+    results = []
+    for core, tail, core_rec, pp_rec in (
+        (core_a, tail_b, a, b),
+        (core_b, tail_a, b, a),
+    ):
+        headline = " ".join(core + tail)
+        if headline:
+            headline = headline[0].upper() + headline[1:]
+        results.append({
+            "headline": headline,
+            "subject_src": core_rec["source"],
+            "subject_orig": core_rec["original"],
+            "subject_link": core_rec.get("link", ""),
+            "predicate_src": core_rec["source"],
+            "predicate_orig": core_rec["original"],
+            "predicate_link": core_rec.get("link", ""),
+            "pp_src": pp_rec["source"],
+            "pp_orig": pp_rec["original"],
+            "pp_link": pp_rec.get("link", ""),
+            "subject": core_rec.get("subject", ""),
+        })
+    return results
+
+
+def build_pp_index(splits):
+    """Index every split headline by its trailing preposition, for use in
+    exhaustive PP-swap matching across the whole batch (see
+    combine_index_pp_swap)."""
+    index = {}
+    for s in splits:
+        orig = _assemble_for_pp_scan(s)
+        if not orig:
+            continue
+        pp = _find_final_pp(orig)
+        if not pp:
+            continue
+        core, tail, prep = pp
+        index.setdefault(prep, []).append((core, tail, s))
+    return index
+
+
+def combine_index_pp_swap(a, b, prep_index):
+    """PASS 2, index-backed PP-swap. Like combine_pair_pp_swap, but instead
+    of requiring a's and b's own random partner to share a preposition,
+    each of a and b searches the full-batch prep_index for any other
+    headline with a matching preposition and a different tail. Returns a
+    swap record for whichever of a/b found a match (0, 1, or 2 results)."""
+    results = []
+    for headline_rec in (a, b):
+        orig = _assemble_for_pp_scan(headline_rec)
+        if not orig:
+            continue
+        pp = _find_final_pp(orig)
+        if not pp:
+            continue
+        core, tail, prep = pp
+        for cand_core, cand_tail, cand_rec in prep_index.get(prep, []):
+            if cand_rec is headline_rec or cand_tail == tail:
+                continue
+            headline = " ".join(core + cand_tail)
+            if headline:
+                headline = headline[0].upper() + headline[1:]
+            results.append({
+                "headline": headline,
+                "subject_src": headline_rec["source"],
+                "subject_orig": headline_rec["original"],
+                "subject_link": headline_rec.get("link", ""),
+                "predicate_src": headline_rec["source"],
+                "predicate_orig": headline_rec["original"],
+                "predicate_link": headline_rec.get("link", ""),
+                "pp_src": cand_rec["source"],
+                "pp_orig": cand_rec["original"],
+                "pp_link": cand_rec.get("link", ""),
+                "subject": headline_rec.get("subject", ""),
+            })
+            break
+    return results
 
 def combine_pair_deterministic(a, b):
     """PASS 2, deterministic. Cross two split headlines BOTH ways with pure
@@ -719,6 +876,8 @@ def build_parts(splits):
             "link": s.get("link", ""),
         })
     return subjects, predicates
+
+
 def build_data():
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -745,9 +904,22 @@ def build_data():
     print(f"  formed {len(pairs)} pairs", file=sys.stderr)
 
     # PASS 2: recombine each pair.
+    prep_index = build_pp_index(splits)
+    pp_swap_count = [0]
     results = []
+    # Cap PP-swap at 20% of pairs (80% verb-cross) by pre-selecting a random
+    # eligible subset up front, rather than throttling after the fact.
+    pp_swap_quota = round(0.20 * len(pairs))
+    pp_swap_eligible = set(random.sample(range(len(pairs)), pp_swap_quota)) if pairs else set()
     for n, (a, b) in enumerate(pairs, 1):
-        recs = combine_pair_deterministic(a, b)
+        if (n - 1) in pp_swap_eligible:
+            recs = combine_index_pp_swap(a, b, prep_index)
+            if recs:
+                pp_swap_count[0] += 1
+            else:
+                recs = combine_pair_deterministic(a, b)
+        else:
+            recs = combine_pair_deterministic(a, b)
         for rec in recs:
             if rec.get("headline"):
                 if is_defamatory(rec["headline"], rec.get("subject", "")):
@@ -757,6 +929,7 @@ def build_data():
         if n % 10 == 0:
             print(f"  combined {n}/{len(pairs)} pairs "
                   f"({len(results)} headlines)", file=sys.stderr)
+    print(f"  PP-swap pairs: {pp_swap_count[0]}/{len(pairs)}", file=sys.stderr)
     subjects, predicates = build_parts(splits)
     return {
         "headlines": results,
