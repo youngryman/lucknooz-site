@@ -493,6 +493,16 @@ def _effective_plural(subject, plural):
     return plural
 
 
+def _strip_neg_contraction(word):
+    """If word ends in a negation contraction ('n't or its curly variant),
+    return (base_word, suffix), e.g. "don't" -> ("do", "n't"); else
+    (word, "")."""
+    for suf in ("n't", "n\u2019t"):
+        if word.lower().endswith(suf) and len(word) > len(suf):
+            return word[:-len(suf)], word[-len(suf):]
+    return word, ""
+
+
 def _fix_verb_agreement(headline, predicate_verb, plural):
     """Replace the predicate's pivoting verb in the headline with a form that
     agrees with the NEW subject's number. We know the exact verb token from the
@@ -500,13 +510,25 @@ def _fix_verb_agreement(headline, predicate_verb, plural):
     Past tense is preserved; only present/participle finite verbs are flipped."""
     if not predicate_verb:
         return headline
+    parts = predicate_verb.split()
+    if not parts:
+        return headline
+
     # The predicate verb may be multi-word ("never knew", "is affecting");
     # operate on the LAST word, which carries the finite inflection... except
-    # for copulas where the first word is the finite one. Handle the common
-    # single-word case robustly; for "is affecting" the agreeing token is "is".
-    parts = predicate_verb.split()
-    target = parts[0] if parts and parts[0].lower() in (
-        "is", "are", "was", "were", "has", "have", "do", "does") else parts[-1] if parts else predicate_verb
+    # for copulas/do-support where the FIRST word is the finite one. The first
+    # word may itself be a contracted negation ("don't", "isn't") -- strip the
+    # "n't" to find the underlying auxiliary, conjugate that, then reattach
+    # the same suffix to the new form ("don't" -> "doesn't").
+    first_base, neg_suffix = _strip_neg_contraction(parts[0])
+    _AUX_SET = ("is", "are", "was", "were", "has", "have", "do", "does")
+    if first_base.lower() in _AUX_SET:
+        target = parts[0]       # literal token to find/replace in headline
+        conj_base = first_base  # bare auxiliary to conjugate
+    else:
+        target = parts[-1]
+        conj_base = target
+        neg_suffix = ""
 
     # GUARD (Bug 1a): if the verb is governed by a modal or preceded by "to",
     # it must be BASE FORM and takes no number agreement. The bare verb token
@@ -516,20 +538,22 @@ def _fix_verb_agreement(headline, predicate_verb, plural):
                "must", "shall", "should", "to"}
     m = _re_mod.search(r'(\b\w+\b)\s+\b' + _re_mod.escape(target) + r'\b', headline)
     if m and m.group(1).lower() in _MODALS:
-        lemmas = _lemm().getLemma(target.lower(), upos="VERB")
-        base = lemmas[0] if lemmas else target.lower()
-        if base != target.lower():
-            base = _match_case(target, base)
+        lemmas = _lemm().getLemma(conj_base.lower(), upos="VERB")
+        base = lemmas[0] if lemmas else conj_base.lower()
+        if base != conj_base.lower():
+            base = _match_case(conj_base, base)
+            replacement = base + neg_suffix
             pat = _re_mod.compile(r'\b' + _re_mod.escape(target) + r'\b')
-            return pat.sub(base, headline, count=1)
+            return pat.sub(replacement, headline, count=1)
         return headline  # already base form, nothing to do
 
-    new = _agree_present_verb(target, plural)
-    if not new or new == target:
+    new_base = _agree_present_verb(conj_base, plural)
+    if not new_base or new_base == conj_base:
         return headline
+    new_full = new_base + neg_suffix
     # Replace the FIRST whole-word occurrence of target in the headline.
     pat = _re_mod.compile(r'\b' + _re_mod.escape(target) + r'\b')
-    return pat.sub(new, headline, count=1)
+    return pat.sub(new_full, headline, count=1)
 
 
 def combine_pair(client, a, b):
@@ -811,15 +835,25 @@ def _verb_forms(verb):
     """Pre-compute singular (VBZ) and plural (VBP) forms of the pivot verb,
     server-side, so the browser needs no conjugation logic. Negation and any
     leading words are preserved; only the finite verb token is inflected.
+    A contracted negated auxiliary in the first slot ("don't", "isn't") is
+    unwrapped so the underlying auxiliary gets conjugated correctly, then the
+    same "n't" suffix is reattached ("don't" -> "doesn't").
     Returns (sing, plur)."""
     if not verb:
         return verb, verb
     parts = verb.split()
-    idx = 0 if parts and parts[0].lower() in (
-        "is", "are", "was", "were", "has", "have", "do", "does") else len(parts) - 1
-    target = parts[idx]
-    sing = _agree_present_verb(target, False) or target
-    plur = _agree_present_verb(target, True) or target
+    if not parts:
+        return verb, verb
+    first_base, neg_suffix = _strip_neg_contraction(parts[0])
+    if first_base.lower() in ("is", "are", "was", "were", "has", "have", "do", "does"):
+        idx = 0
+        target = first_base
+    else:
+        idx = len(parts) - 1
+        target = parts[idx]
+        neg_suffix = ""
+    sing = (_agree_present_verb(target, False) or target) + neg_suffix
+    plur = (_agree_present_verb(target, True) or target) + neg_suffix
 
     def rebuild(newtok):
         p = list(parts)

@@ -369,15 +369,37 @@ def _verb_and_rest(doc, subj_tok, verb, modal, neg):
     for c in verb.children:
         if c.dep_ == "neg":
             neg_tok = c
+    # NON-MODAL AUX: a negated auxiliary construction ("don't farm",
+    # "hasn't stopped", "isn't working") tokenizes as separate tokens for the
+    # auxiliary (aux/auxpass child of the verb) and "n't" (neg child of the
+    # verb). A TRUE MODAL (would/should/can/...) is captured separately
+    # elsewhere and must NOT be duplicated here -- only non-modal
+    # auxiliaries (do/does/did, has/have/had, is/are/was/were/am) need
+    # capturing, since nothing else in this function would otherwise include
+    # them: they'd silently vanish, leaving a bare "n't stopped" that can't
+    # be correctly reconjugated for a new subject. Capture the earliest such
+    # auxiliary preceding the verb so generate.py's existing agreement logic
+    # (which already knows to conjugate a leading aux) gets the chance to work.
+    aux_tok = None
+    for c in verb.children:
+        if c.dep_ in ("aux", "auxpass") and c.tag_ != "MD":
+            if aux_tok is None or c.i < aux_tok.i:
+                aux_tok = c
     # The verb phrase head index
     vi = verb.i
-    # Verb text: include a preceding negation ("never knew") or contracted neg.
+    # Verb text: include a preceding negation ("never knew") or contracted neg,
+    # and any preceding non-modal auxiliary, in original token order.
     verb_text = verb.text
     if neg_tok is not None:
         if neg_tok.i < vi:
-            verb_text = neg_tok.text + " " + verb.text
+            if aux_tok is not None and aux_tok.i < neg_tok.i:
+                verb_text = aux_tok.text + " " + neg_tok.text + " " + verb.text
+            else:
+                verb_text = neg_tok.text + " " + verb.text
         else:
             verb_text = verb.text + " " + neg_tok.text
+    elif aux_tok is not None and aux_tok.i < vi:
+        verb_text = aux_tok.text + " " + verb.text
     # REST = all tokens after the verb (and after a post-verb neg), excluding
     # the verb itself and excluding any modal already captured.
     rest_start = vi + 1
