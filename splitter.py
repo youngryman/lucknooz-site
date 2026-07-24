@@ -242,6 +242,13 @@ def split_headline(text):
     if not verb_text:
         return _verbless(clean)
 
+    # LEMMA REJECT: "church" is frequently mis-tagged as a finite verb by
+    # spaCy (e.g. "World churches body..." uses "churches" as a plural noun,
+    # not a verb). Treat any split whose pivot verb lemmatizes to "church"
+    # as verbless, so it never enters the subject/predicate pools.
+    if verb is not None and verb.lemma_.lower() == "church":
+        return _verbless(clean)
+
     # REPORTING-VERB REJECT. If the pivot verb is a bare attribution verb,
     # the parser rooted on an attribution that strands the real clause,
     # producing predicates like "say major bridge destroyed". Set aside as
