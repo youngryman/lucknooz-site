@@ -301,6 +301,7 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
   }
   .more:hover{background:var(--oxblood);}
   .empty{color:var(--muted); font-style:italic; padding:30px 0; text-align:center;}
+  mark{background:var(--oxblood); color:var(--paper); padding:0 2px; border-radius:2px;}
   footer{
     margin-top:50px; padding-top:16px; border-top:3px double var(--ink);
     text-align:center; font-family:"Spectral SC",serif; font-size:11px;
@@ -355,8 +356,20 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
 <script>
 const DATA = JSON.parse(document.getElementById('bts-data').textContent);
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-const link = (text, url) => {
-  const q = '\u201C'+esc(text)+'\u201D';
+const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function wordMatch(text, term){
+  if(!term) return true;
+  return new RegExp('\\b'+escapeRegExp(term)+'\\b', 'i').test(text||'');
+}
+function highlight(text, term){
+  const escaped = esc(text);
+  if(!term) return escaped;
+  const re = new RegExp('\\b('+escapeRegExp(term)+')\\b', 'gi');
+  return escaped.replace(re, '<mark>$1</mark>');
+}
+const link = (text, url, term) => {
+  const body = term ? highlight(text, term) : esc(text);
+  const q = '\u201C'+body+'\u201D';
   return (url && /^https?:\/\//i.test(url))
     ? '<a href="'+esc(url)+'" target="_blank" rel="noopener">'+q+'</a>' : q;
 };
@@ -390,15 +403,15 @@ tabs.ppswap.btn.onclick = ()=>select('ppswap');
 const realList = document.getElementById('real-list');
 const realCount = document.getElementById('count-real');
 function renderReal(filter){
-  const f = (filter||'').toLowerCase();
+  const f = (filter||'').trim();
   let shown = 0;
   const html = DATA.real_grouped.map(g => {
-    const rows = g.items.filter(it => !f || it.title.toLowerCase().includes(f));
+    const rows = g.items.filter(it => wordMatch(it.title, f));
     if(!rows.length) return '';
     shown += rows.length;
     return '<div class="source-group"><div class="source-name">'+esc(g.source)+
       ' · '+rows.length+'</div>' +
-      rows.map(it => '<div class="real-item">'+link(it.title, it.link)+'</div>').join('') +
+      rows.map(it => '<div class="real-item">'+link(it.title, it.link, f)+'</div>').join('') +
       '</div>';
   }).join('');
   realList.innerHTML = html || '<p class="empty">No matches.</p>';
@@ -414,18 +427,19 @@ const PAGE = 100;
 let reconFiltered = DATA.crosses;
 let reconShown = 0;
 
-function crossHtml(c){
+let reconTerm = '';
+function crossHtml(c, term){
   return '<div class="cross">' +
-    '<p class="cross-head">'+esc(c.headline)+'</p>' +
+    '<p class="cross-head">'+highlight(c.headline, term)+'</p>' +
     '<div class="prov">' +
-      '<div class="row"><span class="lbl">Subject</span>'+esc(c.subject_src)+' — '+link(c.subject_orig, c.subject_link)+'</div>' +
-      '<div class="row"><span class="lbl">Predicate</span>'+esc(c.predicate_src)+' — '+link(c.predicate_orig, c.predicate_link)+'</div>' +
+      '<div class="row"><span class="lbl">Subject</span>'+esc(c.subject_src)+' — '+link(c.subject_orig, c.subject_link, term)+'</div>' +
+      '<div class="row"><span class="lbl">Predicate</span>'+esc(c.predicate_src)+' — '+link(c.predicate_orig, c.predicate_link, term)+'</div>' +
     '</div></div>';
 }
 function renderRecon(reset){
   if(reset){ reconList.innerHTML=''; reconShown=0; }
   const next = reconFiltered.slice(reconShown, reconShown+PAGE);
-  reconList.insertAdjacentHTML('beforeend', next.map(crossHtml).join(''));
+  reconList.insertAdjacentHTML('beforeend', next.map(c=>crossHtml(c, reconTerm)).join(''));
   reconShown += next.length;
   reconCount.textContent = reconShown.toLocaleString()+' of '+reconFiltered.length.toLocaleString()+' shown';
   moreBtn.style.display = (reconShown < reconFiltered.length) ? 'block' : 'none';
@@ -433,8 +447,8 @@ function renderRecon(reset){
 }
 moreBtn.onclick = ()=>renderRecon(false);
 document.getElementById('search-recon').addEventListener('input', e => {
-  const f = e.target.value.toLowerCase();
-  reconFiltered = f ? DATA.crosses.filter(c => c.headline.toLowerCase().includes(f)) : DATA.crosses;
+  reconTerm = e.target.value.trim();
+  reconFiltered = reconTerm ? DATA.crosses.filter(c => wordMatch(c.headline, reconTerm)) : DATA.crosses;
   renderRecon(true);
 });
 
@@ -445,18 +459,19 @@ const moreBtnPP = document.getElementById('more-btn-pp');
 let ppFiltered = DATA.pp_crosses;
 let ppShown = 0;
 
-function crossHtmlPP(c){
+let ppTerm = '';
+function crossHtmlPP(c, term){
   return '<div class="cross">' +
-    '<p class="cross-head">'+esc(c.headline)+'</p>' +
+    '<p class="cross-head">'+highlight(c.headline, term)+'</p>' +
     '<div class="prov">' +
-      '<div class="row"><span class="lbl">Subject</span>'+esc(c.subject_src)+' — '+link(c.subject_orig, c.subject_link)+'</div>' +
-      '<div class="row"><span class="lbl">PP source</span>'+esc(c.pp_src)+' — '+link(c.pp_orig, c.pp_link)+'</div>' +
+      '<div class="row"><span class="lbl">Subject</span>'+esc(c.subject_src)+' — '+link(c.subject_orig, c.subject_link, term)+'</div>' +
+      '<div class="row"><span class="lbl">PP source</span>'+esc(c.pp_src)+' — '+link(c.pp_orig, c.pp_link, term)+'</div>' +
     '</div></div>';
 }
 function renderPP(reset){
   if(reset){ ppList.innerHTML=''; ppShown=0; }
   const next = ppFiltered.slice(ppShown, ppShown+PAGE);
-  ppList.insertAdjacentHTML('beforeend', next.map(crossHtmlPP).join(''));
+  ppList.insertAdjacentHTML('beforeend', next.map(c=>crossHtmlPP(c, ppTerm)).join(''));
   ppShown += next.length;
   ppCount.textContent = ppShown.toLocaleString()+' of '+ppFiltered.length.toLocaleString()+' shown';
   moreBtnPP.style.display = (ppShown < ppFiltered.length) ? 'block' : 'none';
@@ -464,8 +479,8 @@ function renderPP(reset){
 }
 moreBtnPP.onclick = ()=>renderPP(false);
 document.getElementById('search-ppswap').addEventListener('input', e => {
-  const f = e.target.value.toLowerCase();
-  ppFiltered = f ? DATA.pp_crosses.filter(c => c.headline.toLowerCase().includes(f)) : DATA.pp_crosses;
+  ppTerm = e.target.value.trim();
+  ppFiltered = ppTerm ? DATA.pp_crosses.filter(c => wordMatch(c.headline, ppTerm)) : DATA.pp_crosses;
   renderPP(true);
 });
 
