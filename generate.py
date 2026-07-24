@@ -743,26 +743,33 @@ def combine_index_pp_swap(a, b, prep_index):
         if not pp:
             continue
         core, tail, prep = pp
-        for cand_core, cand_tail, cand_rec in prep_index.get(prep, []):
-            if cand_rec is headline_rec or cand_tail == tail:
-                continue
-            headline = " ".join(core + cand_tail)
-            if headline:
-                headline = headline[0].upper() + headline[1:]
-            results.append({
-                "headline": headline,
-                "subject_src": headline_rec["source"],
-                "subject_orig": headline_rec["original"],
-                "subject_link": headline_rec.get("link", ""),
-                "predicate_src": headline_rec["source"],
-                "predicate_orig": headline_rec["original"],
-                "predicate_link": headline_rec.get("link", ""),
-                "pp_src": cand_rec["source"],
-                "pp_orig": cand_rec["original"],
-                "pp_link": cand_rec.get("link", ""),
-                "subject": headline_rec.get("subject", ""),
-            })
-            break
+        candidates = [
+            (cc, ct, cr) for cc, ct, cr in prep_index.get(prep, [])
+            if cr is not headline_rec and ct != tail
+        ]
+        if not candidates:
+            continue
+        # Pick a random eligible donor rather than always the first match in
+        # harvest order — otherwise whichever headline happens to be indexed
+        # earliest for a given preposition becomes a de facto permanent
+        # donor for every other headline sharing that preposition.
+        cand_core, cand_tail, cand_rec = random.choice(candidates)
+        headline = " ".join(core + cand_tail)
+        if headline:
+            headline = headline[0].upper() + headline[1:]
+        results.append({
+            "headline": headline,
+            "subject_src": headline_rec["source"],
+            "subject_orig": headline_rec["original"],
+            "subject_link": headline_rec.get("link", ""),
+            "predicate_src": headline_rec["source"],
+            "predicate_orig": headline_rec["original"],
+            "predicate_link": headline_rec.get("link", ""),
+            "pp_src": cand_rec["source"],
+            "pp_orig": cand_rec["original"],
+            "pp_link": cand_rec.get("link", ""),
+            "subject": headline_rec.get("subject", ""),
+        })
     return results
 
 def combine_pair_deterministic(a, b):
