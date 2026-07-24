@@ -345,11 +345,9 @@ def harvest():
             except Exception as e:
                 print(f"  ! {source}: {e}", file=sys.stderr)
                 continue
-            count = 0
             rejected = 0
+            eligible = []
             for entry in parsed.entries:
-                if count >= MAX_PER_FEED:
-                    break
                 title = clean_title(getattr(entry, "title", "").strip())
                 if not title or title in seen:
                     continue
@@ -359,10 +357,15 @@ def harvest():
                     rejected += 1
                     continue
                 link = getattr(entry, "link", "") or ""
-                items.append({"title": title, "source": source,
-                              "category": category, "link": link})
-                count += 1
-            print(f"  {source}: {count} kept, {rejected} rejected", file=sys.stderr)
+                eligible.append({"title": title, "source": source,
+                                  "category": category, "link": link})
+            # Sample randomly from ALL eligible entries this feed offered,
+            # rather than deterministically favoring whichever entries the
+            # feed happened to list first (typically its most recent) —
+            # recency is not privileged by design.
+            chosen = random.sample(eligible, min(MAX_PER_FEED, len(eligible)))
+            items.extend(chosen)
+            print(f"  {source}: {len(chosen)} kept, {rejected} rejected", file=sys.stderr)
     return items
 
 
